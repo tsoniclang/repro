@@ -1,5 +1,4 @@
-from std.testing import assert_equal, assert_true
-
+from std.testing import assert_equal
 
 @fieldwise_init
 struct Payload(Copyable, Writable):
@@ -9,16 +8,13 @@ struct Payload(Copyable, Writable):
     def write_to(self, mut writer: Some[Writer]):
         writer.write(self.tag, ": ", self.message)
 
-
-def direct() raises Payload -> Int:
+def deferred() raises Payload -> Int:
     raise Payload("category", "retained message")
 
-
 def main() raises:
-    var rejected = False
     try:
-        _ = direct()
+        _ = deferred()
     except error:
         assert_equal(String(error), "category: retained message")
-        rejected = True
-    assert_true(rejected)
+        return
+    raise Error("expected an exception")

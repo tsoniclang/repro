@@ -1,5 +1,5 @@
 # repro
 Repro for upstream bugs
 
-- [Mojo compiler crashes on String awaits around try/catch](repos/mojo-compiler-crash-async-string-await-catch/)
-- [Mojo typed async exception loses its payload](repos/mojo-async-typed-error-payload-loss/)
+- [Mojo compiler segfaults at O0 on a nested String-returning task](repos/mojo-compiler-crash-nested-string-await-o0/)
+- [Mojo accepts an unsupported typed async error](repos/mojo-async-typed-error-payload-loss/)
