@@ -1,4 +1,13 @@
-# Accepted typed async exception loses its payload through task await
+# Missing rejection of typed async errors at a native-Error task boundary
+
+**Report classification:** an unsupported typed-error combination is accepted
+and executes with the wrong observable message. This is **not** evidence that
+Mojo promises general typed async exception support or that a supported public
+API regressed. The
+[upstream module contract](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/runtime/_asyncrt.mojo#L13-L20)
+explicitly calls this runtime unfinished and private and says applications should
+not depend on it. The narrowly justified upstream request is to diagnose the
+unsupported error boundary, not to promise a new async capability.
 
 [repro.mojo](repro.mojo) throws the same two-field native `Payload` synchronously
 and asynchronously. The synchronous catch verifies `category: retained message`.
@@ -98,3 +107,50 @@ the SDK. The observation proves incorrect accepted behavior for this input,
 not a promise that arbitrary typed async exceptions are already supported.
 No field casts, source-name recovery, exception stringification workaround or
 native compiler patch is proposed. The exact internal fix remains upstream work.
+
+## Skeptical contract audit
+
+The upstream
+[RaisingCoroutine](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/builtin/_coroutine.mojo#L197-L304)
+type has result/origin parameters but no error-type parameter. Its error slot
+and `__await__` implementation use native `Error`.
+[RaisingTask](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/runtime/_asyncrt.mojo#L326-L451)
+also allocates an `Error` slot and exposes bare-`raises` `wait`/`__await__` methods.
+The custom error declared on `deferred` therefore does not have a corresponding
+typed task transport in this implementation.
+
+A fresh probe added compile-time assertions: the synchronous catch infers
+`Payload`, while the task catch infers **`Error`**, not `Payload`. It still
+compiled and failed the same message assertion on both SDKs at O0 and O3.
+This distinction matters: absence of `Payload` fields on the caught value is
+expected from the task's signature and is not itself the reported defect.
+
+Three additional controls passed at O0 and O3 on both SDKs:
+
+- Raise native `Error("category: retained message")` asynchronously and check its
+  message after task consumption.
+- Catch `Payload` from a synchronous call inside the async function, verifying
+  its fields' formatted output before any error crosses the task boundary.
+- Propagate that synchronous typed error through a bare-`raises` wrapper, both
+  synchronously and asynchronously; ordinary conversion to native `Error`
+  preserves `category: retained message` in both cases.
+
+For example, the third control's async wrapper is:
+
+```mojo
+async def deferred() raises -> Int:
+    return direct()
+```
+
+These are diagnostic controls, not a proposed Tsonic workaround. They show that
+the failed assertion is not merely the normal loss of custom field access when
+converting a typed error to `Error`. The mismatching case specifically declares
+the coroutine itself as `raises Payload` and passes it to the native-Error-only
+task machinery without a rejecting diagnostic.
+
+Directly awaiting that custom-error coroutine inside an outer native-Error
+coroutine also failed native lowering in further probes; it did not demonstrate
+an alternative supported typed-await path. The exact internal fix, support
+roadmap, severity and duplicate status remain for upstream triage. The report
+does not claim that arbitrary custom error layouts are supported or that the
+observed output alone proves a particular memory-corruption mechanism.

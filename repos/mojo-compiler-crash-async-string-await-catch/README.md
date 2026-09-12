@@ -1,11 +1,20 @@
 # Mojo compiler crashes on String awaits around try/catch
 
+**Report classification:** compiler robustness failure in Mojo's unfinished,
+private async machinery, not a regression in a supported public async API.
+The [upstream module contract](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/runtime/_asyncrt.mojo#L13-L20)
+explicitly says applications should not depend on this runtime. That limitation
+must accompany this report, not be omitted when filing it.
+
 [repro.mojo](repro.mojo) awaits String-returning tasks, catches a failing awaited
 call, then awaits another String result. It imports only the Mojo standard
 library, including its `std.runtime._asyncrt` task API. No Tsonic, generated code,
 custom runtime, FFI, filesystem or network is involved.
 
-Expected: compilation succeeds, then every assertion passes with exit 0.
+For a supported implementation, compilation would succeed and every assertion
+would pass with exit 0. If the input uses an unsupported combination, a source
+diagnostic is an acceptable outcome; the robustness issue is crashing or failing
+native IR verification instead.
 Observed on Linux x86-64: the native compiler fails before producing an executable
 at **all four optimization levels**, including O0.
 
@@ -100,3 +109,31 @@ been established by this reduction and is left for upstream diagnosis.
 The initial matrix peaked below 363 MiB with no swap, far below its 3 GiB ceiling.
 No optimizer setting, removed catch, custom coroutine transform or application
 workaround is being proposed. Other platforms and untested SDKs are not certified.
+
+## Skeptical contract audit
+
+The task is consumed exactly once through `wait` or `await`; the example does
+not call unchecked `get`, destroy incomplete tasks, or manipulate coroutine
+handles. This follows the consumption pattern in the
+[upstream raising-task tests](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/test/runtime/test_raising_asyncrt.mojo#L119-L165).
+That establishes the intended internal usage, not public API stability.
+
+Additional September 12 checks on both SDKs at O0 and O3 removed **all function
+arguments**, used named tasks, and transferred each task explicitly. Compilation
+still crashed or timed out after a native crash header. Thus the original
+failure is not explained solely by borrowed String arguments or unnamed tasks.
+Removing the catch also still failed: the title describes the supplied source,
+not a proof that `try`/`except` is the unique necessary trigger. Replacing inner
+tasks with direct coroutine awaits produced native IR failures, including
+`pop.cast_from_builtin` bool casts and invalid `pop.store` operands, rather than
+a working executable.
+
+Three other diagnostic variants that changed arguments to owned temporary
+Strings were rejected with uninitialized-value source diagnostics. Those
+rejections are **not** counted as confirmation of this compiler crash.
+
+[Upstream issue #6842](https://github.com/modular/modular/issues/6842) already
+reports related unfinished async lowering failures, including the bool-cast
+diagnostic. Check that issue before filing; this reduction is not a claim of a
+new or internally distinct bug. It uses no capturing closures, but only the
+compiler owner can establish whether its underlying cause is the same.
