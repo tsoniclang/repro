@@ -1,7 +1,0 @@
-[workspace]
-name = "mojo-native-async-repros"
-channels = ["conda-forge", "https://conda.modular.com/max/"]
-platforms = ["linux-64"]
-
-[dependencies]
-mojo = "==1.0.0"

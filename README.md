@@ -1,10 +1,16 @@
 # repro
-Repro for upstream bugs
 
-Current examples use the documented public API in Mojo 1.0.0. Mojo still
-classifies async behavior as unstable.
+Minimal reproductions for confirmed bugs we have reported upstream.
 
-- [Typed async error message loss: reproduced through the public API](repos/mojo-async-typed-error-payload-loss/)
-- [Nested String-returning task: passes through the public API](repos/mojo-compiler-crash-nested-string-await-o0/)
+No upstream reports have been posted yet, so there are currently no repros here.
 
-See [filing status](FILING.md) before using an upstream report draft.
+Add a repro only after verifying that it demonstrates a bug and posting the
+upstream issue. Each repro must contain:
+
+- A link to the posted issue.
+- The smallest source needed to demonstrate the reported behavior, using public APIs.
+- Only the setup and run instructions, version details, and expected and actual
+  results needed to reproduce it.
+
+Keep unposted investigations, report drafts, and extensive test harnesses out of
+the tracked repository.
