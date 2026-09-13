@@ -3,6 +3,9 @@
 A coroutine declared `raises Payload` is accepted by `create_raising_task`,
 but its two-field error formats as only `category` after `wait()`.
 
+The prepared [issue text](ISSUE.md) includes a title and the three fields for
+Modular's Mojo bug-report form. See [filing instructions](../../FILING.md).
+
 The [task implementation](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/runtime/_asyncrt.mojo#L326-L451)
 uses native `Error`, not a generic error type. This is a request to reject an
 unsupported error combination, not a claim that typed async errors are supported.
@@ -60,15 +63,19 @@ It passes, confirming that the formatter writes both fields.
 
 ## Verification
 
-Linux x86-64, September 12, 2026; fresh runs of the exact files in this case:
+Ubuntu 26.04.1 LTS, Linux x86-64, AMD Ryzen 9 5900X; September 12–13, 2026;
+fresh runs of the exact files in this case:
 
-| Mojo SDK | O0 | O1 | O2 | O3 |
+| Mojo SDK and distribution | O0 | O1 | O2 | O3 |
 | --- | --- | --- | --- | --- |
-| `1.1.0.dev2026083005 (ffc874b9)` | Message truncated | Message truncated | Message truncated | Message truncated |
-| `1.1.0.dev2026091105 (9b4d4f31)` | Message truncated | Message truncated | Message truncated | Message truncated |
+| Conda `1.1.0.dev2026083005 (ffc874b9)` | Message truncated | Message truncated | Message truncated | Message truncated |
+| Wheel `1.1.0.dev2026091105 (9b4d4f31)` | Message truncated | Message truncated | Message truncated | Message truncated |
 
 All eight repro builds succeed and executions fail the exact assertion above.
 The synchronous control builds and passes in all eight combinations.
+Stable wheel `1.0.0 (ed45d567)` lacks `_asyncrt`, so the unchanged repro fails
+to import at every optimization level; its synchronous control passes at every
+level. That import failure does not exercise the reported bug.
 
 Normal native-`Error` async calls and synchronous typed errors are not claimed
 to be broken. The inferred task-catch type is `Error`, not `Payload`; losing

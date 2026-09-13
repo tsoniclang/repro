@@ -1,7 +1,11 @@
-# Mojo compiler segfaults at O0 on a nested String-returning task
+# Mojo compiler fails at O0–O2 on a nested String-returning task
 
-Compiling this program at O0 crashes the compiler before it produces an
-executable. The program has no function arguments, captures, or unsafe code.
+Compiling this program at O0–O2 fails inside the compiler; O3 builds and prints
+`hello`. The O0 failure differs between the tested SDKs. The program has no
+function arguments, captures, or unsafe code.
+
+The prepared [upstream comment](UPSTREAM_COMMENT.md) can be posted on the related
+async compiler report [#6842](https://github.com/modular/modular/issues/6842).
 
 Mojo's async runtime is [private and unfinished](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/runtime/_asyncrt.mojo#L13-L20).
 This report concerns a compiler crash, not a promise of public async support.
@@ -34,23 +38,30 @@ mojo build -j 1 -O0 repro.mojo -o repro
 **Expected:** compilation succeeds and the program prints `hello`, or unsupported
 usage receives a source diagnostic.
 
-**Actual:** compiler SIGSEGV (exit 139), a native stack dump, and no executable.
-The crash header asks for a bug report. At O1/O2, compilation instead fails
-native `pop.store`/`pop.load` IR verification (exit 1). At O3, the same input
-builds and prints `hello` on both tested SDKs.
+**Actual:** the locked Conda SDK at O0 reports `corrupted size vs. prev_size`,
+asks for a bug report, and begins a stack dump. The guarded run then reaches
+its 45-second timeout (exit 124), with no executable. This does not establish
+the original crash signal. The newer nightly wheel SDK at O0 instead fails
+native `pop.store`/`pop.load` IR verification (exit 1).
+
+Both SDKs fail IR verification at O1/O2 and build and print `hello` at O3.
 
 ## Verification
 
-Linux x86-64, September 12, 2026:
+Ubuntu 26.04.1 LTS, Linux x86-64, AMD Ryzen 9 5900X; September 12–13, 2026:
 
-| Mojo SDK | O0 | O1 | O2 | O3 |
+| Mojo SDK and distribution | O0 | O1 | O2 | O3 |
 | --- | --- | --- | --- | --- |
-| `1.1.0.dev2026083005 (ffc874b9)` | Compiler SIGSEGV | Invalid native IR | Invalid native IR | Prints `hello` |
-| `1.1.0.dev2026091105 (9b4d4f31)` | Compiler SIGSEGV | Invalid native IR | Invalid native IR | Prints `hello` |
+| Conda `1.1.0.dev2026083005 (ffc874b9)` | Heap-corruption crash dump, then timeout (124) | Invalid native IR (1) | Invalid native IR (1) | Prints `hello` |
+| Wheel `1.1.0.dev2026091105 (9b4d4f31)` | Invalid native IR (1) | Invalid native IR (1) | Invalid native IR (1) | Prints `hello` |
 
 `control.mojo` removes only async/task execution and retains the same nested
 String-returning calls. It builds and prints `hello` in all eight SDK/level
 combinations. These results are from fresh runs of the exact files in this case.
+The previously reported O0 SIGSEGV/exit 139 was not reconfirmed. Stable wheel
+`1.0.0 (ed45d567)` lacks `_asyncrt`, so the unchanged repro fails to import at
+every optimization level; its synchronous control passes at every level.
+
 Related async lowering failures are tracked in
 [issue #6842](https://github.com/modular/modular/issues/6842); a shared internal
 cause has not been established.
