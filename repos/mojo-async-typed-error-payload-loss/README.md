@@ -1,22 +1,23 @@
-# Mojo accepts a custom-error coroutine at a native-Error task boundary
+# Custom-error coroutine loses part of its message through the public task API
 
-A coroutine declared `raises Payload` is accepted by `create_raising_task`,
-but its two-field error formats as only `category` after `wait()`.
+A coroutine declared `raises Payload` is accepted by the documented public
+`std.runtime.asyncrt.create_raising_task` API in Mojo 1.0.0. After `wait()` raises,
+its two-field error formats as only `category`, losing `retained message`.
+The synchronous control preserves both fields.
 
-The prepared [issue text](ISSUE.md) includes a title and the three fields for
-Modular's Mojo bug-report form. See [filing instructions](../../FILING.md).
+The [API reference](https://mojolang.org/docs/std/runtime/asyncrt/create_raising_task/) documents the task function. Its
+[1.0.0 implementation](https://github.com/modular/modular/blob/mojo/v1.0.0/mojo/stdlib/std/runtime/asyncrt.mojo) uses native `Error` storage, so the report asks
+for rejection of an incompatible custom-error coroutine or correct conversion.
+It does not assume arbitrary typed async errors are supported. Mojo separately
+[classifies async/await as unstable](https://mojolang.org/docs/api-docs/stability/#asyncawait-is-unstable).
 
-The [task implementation](https://github.com/modular/modular/blob/2b47eeef01fd2d85269184ced847dc75d2c5040a/Mojo/stdlib/std/runtime/_asyncrt.mojo#L326-L451)
-uses native `Error`, not a generic error type. This is a request to reject an
-unsupported error combination, not a claim that typed async errors are supported.
-The same module explicitly describes its async API as private and unfinished.
+The [revised issue draft](ISSUE.md) includes the title and form fields.
+See [filing status](../../FILING.md).
 
 ## Reproduction
 
-Save as `repro.mojo`:
-
 ```mojo
-from std.runtime._asyncrt import create_raising_task
+from std.runtime.asyncrt import create_raising_task
 from std.testing import assert_equal
 
 @fieldwise_init
@@ -40,51 +41,50 @@ def main() raises:
     raise Error("expected an exception")
 ```
 
-With an activated Mojo SDK, build and run under resource limits:
+With Mojo 1.0.0 activated:
 
 ```bash
 mojo build -j 1 -O0 repro.mojo -o repro
 ./repro
 ```
 
-**Expected:** reject the unsupported error type at compilation. If it is
-supported, preserve the complete formatted error: `category: retained message`.
+**Expected:** reject an incompatible custom-error coroutine at compilation.
+If conversion to native `Error` is intended to be supported, preserve its full
+formatted message: `category: retained message`.
 
-**Actual:** compilation succeeds; execution exits 1 on the assertion:
+**Actual:** compilation succeeds; execution exits 1 on this assertion:
 
 ```text
 left: category
 right: category: retained message
 ```
 
-The final `raise` also makes the program fail if no exception is delivered.
-`control.mojo` uses the same payload and assertion with a synchronous function.
-It passes, confirming that the formatter writes both fields.
+`control.mojo` uses the same payload and assertion synchronously. It passes.
+The final `raise` also makes either program fail if no exception is delivered.
 
 ## Verification
 
-Ubuntu 26.04.1 LTS, Linux x86-64, AMD Ryzen 9 5900X; September 12–13, 2026;
-fresh runs of the exact files in this case:
+Ubuntu 26.04.1 LTS, Linux x86-64, AMD Ryzen 9 5900X; September 13, 2026.
 
-| Mojo SDK and distribution | O0 | O1 | O2 | O3 |
+| SDK and distribution | O0 | O1 | O2 | O3 |
 | --- | --- | --- | --- | --- |
-| Conda `1.1.0.dev2026083005 (ffc874b9)` | Message truncated | Message truncated | Message truncated | Message truncated |
-| Wheel `1.1.0.dev2026091105 (9b4d4f31)` | Message truncated | Message truncated | Message truncated | Message truncated |
+| Wheel `1.0.0 (ed45d567)` | Message truncated | Message truncated | Message truncated | Message truncated |
+| Conda `1.0.0 (ed45d567)`, `release` build | Message truncated | Message truncated | Message truncated | Message truncated |
 
-All eight repro builds succeed and executions fail the exact assertion above.
-The synchronous control builds and passes in all eight combinations.
-Stable wheel `1.0.0 (ed45d567)` lacks `_asyncrt`, so the unchanged repro fails
-to import at every optimization level; its synchronous control passes at every
-level. That import failure does not exercise the reported bug.
+All eight repro builds succeed and executions exit 1 on the assertion above.
+The synchronous control builds and exits 0 at all four levels on both SDKs.
+These results use the current public import. Earlier nightly results used a
+private import and are not evidence for the current source.
 
-Normal native-`Error` async calls and synchronous typed errors are not claimed
-to be broken. The inferred task-catch type is `Error`, not `Payload`; losing
-custom field access is expected, but accepting an incompatible coroutine and
-losing its formatted message is the reported behavior.
+## Guarded run
 
-## Guarded run from this repository
+With Mojo 1.0.0 on `PATH`, from the repository root:
 
-From the repository root, with Pixi installed:
+```bash
+bash repos/mojo-async-typed-error-payload-loss/reproduce.sh
+```
+
+Alternatively, use the repository's environment pinned to the release:
 
 ```bash
 pixi install --locked --manifest-path tools/mojo-repro/pixi.toml
@@ -92,8 +92,6 @@ pixi run --locked --manifest-path tools/mojo-repro/pixi.toml \
   bash repos/mojo-async-typed-error-payload-loss/reproduce.sh
 ```
 
-This installs the first SDK listed above. With another activated SDK, run
-`bash reproduce.sh` from this case directory. The runner requires Linux, Bash,
-GNU `timeout`, and a systemd user manager. It checks O0–O3, retains commands,
-hashes and logs under `.temp/`, and returns 1 when a case fails. Limits: 3 GiB
-memory, no swap, no core dumps, 45 seconds per build and 10 seconds per execution.
+The runner checks O0–O3 and retains logs under `.temp/`. It requires Linux,
+Bash, GNU `timeout`, and a systemd user manager. Limits: 3 GiB memory, no swap
+or core dumps, 45 seconds per build, and 10 seconds per execution.

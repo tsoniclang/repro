@@ -1,61 +1,47 @@
-# What to file
+# Filing status
 
-Report the two repros using the corrected results and prepared text below.
+Only the typed-error case currently has a failure reproduced through a
+public API. The compiler-report recommendation is withdrawn.
 
-| Repro | Recommended action | Text to copy |
+| Case | Public API result on Mojo 1.0.0 wheel and Conda | Action |
 | --- | --- | --- |
-| Custom error accepted by `create_raising_task`, with a truncated message | Open one new **Mojo bug report** in `modular/modular` | [Issue title and form fields](repos/mojo-async-typed-error-payload-loss/ISSUE.md) |
-| Compiler failure for a nested String-returning task | Add the minimal repro as a comment on the open async compiler report **#6842** | [Complete comment](repos/mojo-compiler-crash-nested-string-await-o0/UPSTREAM_COMMENT.md) |
+| Custom-error coroutine passed to `create_raising_task` | Builds, then loses part of the error message at O0–O3 | Use the [revised issue draft](repos/mojo-async-typed-error-payload-loss/ISSUE.md) if reporting the missing diagnostic or conversion |
+| Nested String-returning async task | Builds and prints `hello` at O0–O3 | Do not post the previous compiler-failure comment on #6842 |
 
-## 1. New issue: unsupported typed async error
+Both current repros import `std.runtime.asyncrt`, documented in the
+[Mojo 1.0.0 API reference](https://mojolang.org/docs/std/runtime/asyncrt/create_raising_task/). No current repro imports a private module.
+Public availability does not imply a stability guarantee: Mojo explicitly
+[classifies async/await as unstable](https://mojolang.org/docs/api-docs/stability/#asyncawait-is-unstable).
+
+## Typed-error report
 
 Open the [Mojo bug-report form](https://github.com/modular/modular/issues/new?template=mojo_bug_report.yaml).
-If the direct form link does not load, use [New issue](https://github.com/modular/modular/issues/new/choose)
-and choose **Mojo bug report**.
+Use the title from [ISSUE.md](repos/mojo-async-typed-error-payload-loss/ISSUE.md)
+and copy its **Bug description**, **Steps to reproduce**, and
+**System information** into the matching form fields.
 
-Use this title:
+The report asks for rejection of an incompatible custom-error coroutine or
+correct conversion to native `Error`. It does not assert that arbitrary typed
+async errors are supported, or that the experimental async API is stabilized.
 
-```text
-[BUG] create_raising_task accepts a custom-error coroutine and loses part of its message
-```
+## Compiler report withdrawn
 
-Open [ISSUE.md](repos/mojo-async-typed-error-payload-loss/ISSUE.md). Copy the text
-under **Bug description**, **Steps to reproduce**, and **System information**
-into the matching form fields. The first line supplies the title; do not copy
-that line into a form field. The snippet and synchronous control are included,
-so the issue can be reproduced without access to this checkout.
+The previous recommendation used a nightly-only private module,
+`std.runtime._asyncrt`. Those observed failures do not establish a problem with
+the current public-API example. With Mojo 1.0.0 and the documented import,
+the example and synchronous control both pass at O0–O3.
 
-This is a report about accepting an unsupported error combination without a
-diagnostic. The private task implementation uses native `Error`; the report
-does not assume arbitrary typed async errors are supported.
+The [former comment file](repos/mojo-compiler-crash-nested-string-await-o0/UPSTREAM_COMMENT.md)
+now records the withdrawal. The existing upstream issue
+[#6842](https://github.com/modular/modular/issues/6842) remains an independent
+report; these checks do not resolve its cases.
 
-## 2. Existing issue: async compiler failures
+## Verification
 
-Open [modular/modular#6842](https://github.com/modular/modular/issues/6842), scroll
-to the comment box, and paste the entire contents of
-[UPSTREAM_COMMENT.md](repos/mojo-compiler-crash-nested-string-await-o0/UPSTREAM_COMMENT.md).
+The guarded runners save commands, hashes, compiler logs, program output, and
+results under `.temp/`. These files are ignored by Git. The current READMEs
+record results for the public API; earlier nightly/private-API results remain
+in Git history and local evidence directories.
 
-That open report already covers async compiler crashes and malformed
-`pop.store` IR. Our no-capture, nested-return example is useful additional
-evidence, but a shared root cause has not been established. Starting with a
-comment lets maintainers decide whether to split it into a separate issue.
-If they ask for a separate issue, use the comment as its body and this title:
-
-```text
-[BUG] Nested String-returning async task fails compilation at O0–O2
-```
-
-## Evidence and limits
-
-- Both nightly SDKs reproduce the typed-error message loss at O0–O3.
-- Both fail compilation of the nested String task at O0–O2 and run it at O3.
-- The locked Conda O0 build reports heap corruption and a crash dump, then
-  times out (exit 124). The wheel O0 build returns invalid-IR diagnostics (exit 1).
-  The earlier exact SIGSEGV/exit-139 claim was not reconfirmed and has been
-  removed from the current result tables.
-- All 24 synchronous controls passed across the three SDK environments.
-- Stable Mojo 1.0.0 lacks `_asyncrt`, so these are nightly reports.
-
-The guarded runners save raw logs under `.temp/`, which is ignored by Git.
-To share a full log, attach it to the upstream issue or comment. Both prepared
-texts include the relevant diagnostics and reproduction code directly.
+The [public-API verification record](tools/mojo-repro/VERIFICATION.md) includes
+source hashes, all 32 build/run results, and the observed assertion.

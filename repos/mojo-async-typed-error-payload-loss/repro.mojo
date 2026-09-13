@@ -1,4 +1,4 @@
-from std.runtime._asyncrt import create_raising_task
+from std.runtime.asyncrt import create_raising_task
 from std.testing import assert_equal
 
 @fieldwise_init
